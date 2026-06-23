@@ -472,6 +472,16 @@ nav.fixed .nav-btn.active {
         <div class="swiper-pagination custom-fraction"></div>
     </div>
 </section>
+<!-- Hero Slider এর নিচে এবং Product Grid এর উপরে এটি বসান -->
+<section class="container mx-auto px-4 mb-8">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-extrabold text-[#004D39]"></h2>
+    </div>
+    <!-- এই ID টি না থাকার কারণেই ক্যাটাগরি দেখা যাচ্ছিল না -->
+    <div id="user-category-list" class="flex gap-4 overflow-x-auto no-scrollbar pb-2">
+        <p class="text-gray-400 text-xs">Loading categories...</p>
+    </div>
+</section>
      
         <section class="container mx-auto px-4 pb-10">
             <h2 class="text-xl font-extrabold text-[#004D39] mb-4">Weekly Trending</h2>
@@ -1705,17 +1715,18 @@ function togglePasswordVisibility() {
         });
 async function fetchCategories() {
     const list = document.getElementById('user-category-list');
-    
-    // ক্যাশ থেকে ইনস্ট্যান্ট লোড
+    if (!list) return; // যদি ID না থাকে তবে ফাংশন কাজ করবে না
+
+    // ১. লোকাল স্টোরেজ থেকে ক্যাশ ডাটা দেখানো (Fast Loading)
     const cachedCategories = localStorage.getItem('alibabubd_cached_categories');
     if (cachedCategories) {
         list.innerHTML = cachedCategories;
     }
 
     try {
+        // ২. ফায়ারবেস থেকে ডাটা আনা
         const snapshot = await db.collection('categories').orderBy('serialNumber', 'asc').get();
-        if (snapshot.empty) return;
-
+        
         let catHtml = `
         <div onclick="renderProducts(products)" class="flex-shrink-0 text-center cursor-pointer group w-16">
             <div class="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center shadow-sm border border-emerald-200 mx-auto">
@@ -1724,38 +1735,42 @@ async function fetchCategories() {
             <span class="text-[9px] font-bold mt-2 block uppercase text-gray-600">All</span>
         </div>`;
 
-        catHtml += snapshot.docs.map(doc => {
+        snapshot.forEach(doc => {
             const data = doc.data();
-            return `
+            catHtml += `
             <div onclick="filterByCategory('${data.name}')" class="flex-shrink-0 text-center cursor-pointer group w-16">
                 <div class="w-14 h-14 bg-white rounded-full flex items-center justify-center shadow-sm border border-slate-100 overflow-hidden mx-auto group-hover:border-[#004D39] transition-all">
-                    <img src="${data.image}" class="w-full h-full object-cover">
+                    <img src="${data.image || 'https://cdn-icons-png.flaticon.com/512/1230/1230201.png'}" class="w-full h-full object-cover">
                 </div>
                 <span class="text-[9px] font-bold mt-1.5 block leading-tight text-gray-700" style="white-space: pre-line;">${data.name}</span>
             </div>`;
-        }).join('');
+        });
 
+        // ৩. নতুন ডাটা দিয়ে আপডেট করা এবং ক্যাশ করা
         list.innerHTML = catHtml;
-        localStorage.setItem('alibabubd_cached_categories', catHtml); // নতুন ডাটা ক্যাশ করে রাখা
+        localStorage.setItem('alibabubd_cached_categories', catHtml);
     } catch (e) {
-        console.error(e);
+        console.error("Category fetch error:", e);
     }
+}   
+function filterByCategory(catName) {
+    // ক্যাটাগরি নাম অনুযায়ী প্রোডাক্ট ফিল্টার করা
+    const filtered = products.filter(p => p.category === catName);
+    
+    // টাইটেল পরিবর্তন করা
+    const sectionHeading = document.querySelector('#home-content h2');
+    if(sectionHeading) sectionHeading.innerText = "Category: " + catName;
+    
+    // প্রোডাক্ট রেন্ডার করা
+    renderProducts(filtered); 
+
+    // স্লাইডার হাইড করা (অপশনাল)
+    const heroSlider = document.querySelector('.mySwiper')?.closest('section');
+    if(heroSlider) heroSlider.classList.add('hidden');
+
+    // স্ক্রল করে উপরে নিয়ে যাওয়া
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 }
-          
-            
-        function filterByCategory(catName) {
-            const filtered = products.filter(p => p.category === catName);
-            renderProducts(filtered); 
-
-         
-            document.getElementById('product-grid').scrollIntoView({
-                behavior: 'smooth'
-            });
-        }
-
-        let currentUser = null;
-        let isLoginMode = true;
-
       
         function showAppPage(pageId) {
     // ১. সব ড্রয়ার বা ওভারলে বন্ধ করা
